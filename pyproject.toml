@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "template-dsai"
 version = "0.1.0"
 description = "Taller de Buenas Prácticas en Ciencia de Datos e IA"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
   "pandas>=2.2",
   "numpy>=1.26",
