@@ -12,7 +12,11 @@ import pandas as pd
 
 from flows.common.logging import get_logger
 from flows.common.paths import (
-    BRONZE, BRONZE_LABELED_NAME, SILVER, SILVER_FINAL_NAME, SILVER_NAME,
+    BRONZE,
+    BRONZE_LABELED_NAME,
+    SILVER,
+    SILVER_FINAL_NAME,
+    SILVER_NAME,
 )
 
 log = get_logger(__name__)

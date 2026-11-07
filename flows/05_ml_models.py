@@ -182,7 +182,7 @@ def evaluate_on_test(pipeline, X_test, y_test, threshold: float = 0.5) -> dict:
         "accuracy": float(accuracy_score(y_test, pred)),
         "f1": float(f1_score(y_test, pred)),
         "roc_auc": float(roc_auc_score(y_test, proba)),
-        "n_test": int(len(y_test)),
+        "n_test": len(y_test),
     }
 
 
@@ -281,7 +281,7 @@ def run(in_dir: Path | None = None, models_dir: Path = MODELS) -> Path:
         "target": TARGET,
         "threshold": THRESHOLD,
         "random_state": settings.random_state,
-        "n_train": int(len(X)),
+        "n_train": len(X),
         "data_sha256": sha256_of(silver_path),
         "metrics": metrics,
     }
