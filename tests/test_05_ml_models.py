@@ -40,6 +40,7 @@ def test_group_age_imputer_uses_only_training_statistics():
 
 def test_pipeline_fits_and_predicts_probabilities(toy):
     X, y = toy
+    X.loc[X.index[:2], "Embarked"] = np.nan
     pipe = ml.build_pipeline(ml.get_candidates(42)["logreg"]).fit(X, y)
     proba = pipe.predict_proba(X)[:, 1]
     assert proba.shape == (len(X),) and ((0 <= proba) & (proba <= 1)).all()
@@ -56,6 +57,28 @@ def test_split_is_stratified_and_reproducible(toy):
 def test_candidates_include_baseline_and_are_seeded():
     cands = ml.get_candidates(42)
     assert "dummy" in cands and "logreg" in cands and len(cands) >= 5
+
+
+def test_final_params_are_available_in_search_grid():
+    grid = ml.get_param_grids()[ml.FINAL_ESTIMATOR]
+    assert all(value in grid[name] for name, value in ml.FINAL_PARAMS.items())
+
+
+def test_load_dataset_uses_unimputed_predictors(tmp_path, toy):
+    X, y = toy
+    silver = X.copy()
+    silver["AgeOriginal"] = X["Age"]
+    silver["EmbarkedOriginal"] = X["Embarked"]
+    silver["Survived"] = y
+    silver.loc[silver.index[0], "AgeOriginal"] = np.nan
+    silver.loc[silver.index[1], "EmbarkedOriginal"] = np.nan
+    path = tmp_path / "silver.parquet"
+    silver.to_parquet(path, index=False)
+
+    loaded, _ = ml.load_dataset(path)
+
+    assert pd.isna(loaded.loc[silver.index[0], "Age"])
+    assert pd.isna(loaded.loc[silver.index[1], "Embarked"])
 
 
 def test_evaluate_on_test_returns_metrics(toy):

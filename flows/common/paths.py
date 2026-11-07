@@ -13,4 +13,4 @@ BRONZE_LABELED_NAME = "titanic_labeled.csv"
 BRONZE_UNLABELED_NAME = "titanic_unlabeled.csv"
 BRONZE_METADATA_NAME = "_ingestion_metadata.json"
 SILVER_NAME = "titanic_silver.parquet"          # completo y auditable
-SILVER_FINAL_NAME = "titanic_final.parquet"     # numérico, sin columnas originales
+SILVER_FINAL_NAME = "titanic_final.parquet"     # vista sin columnas de origen sustituidas

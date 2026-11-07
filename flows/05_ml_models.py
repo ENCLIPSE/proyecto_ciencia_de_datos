@@ -39,25 +39,27 @@ CABIN_CAT = ["TCabin"]
 CANDIDATE_COLUMNS = NUM_FEATURES + CAT_FEATURES + CABIN_NUM + CABIN_CAT
 PRIMARY_METRIC = "roc_auc"
 SCORING = ["accuracy", "precision", "recall", "f1", "roc_auc"]
+FINAL_TEST_RANDOM_STATE = 2026
 
 # --- Decisiones congeladas (resultado del cuaderno 04; justificadas en reports/problema_ml.md) ---
 MODEL_NAME = "titanic_model_v1"
 FINAL_ESTIMATOR = "hgb"                 # nombre en get_candidates()
-FINAL_PARAMS = {                        # ejemplo de la guía: reemplázalo con tus mejores del Paso 57
-    "model__learning_rate": 0.05,
-    "model__max_depth": 3,
-    "model__max_iter": 200,
-    "model__l2_regularization": 1.0,
+FINAL_PARAMS = {                        # mejor combinación por ROC-AUC CV en el conjunto de entrenamiento
+    "model__learning_rate": 0.03,
+    "model__max_depth": 2,
+    "model__max_iter": 100,
+    "model__l2_regularization": 0.0,
 }
 USE_CABIN_FEATURES = False              # decisión del Paso 61
 THRESHOLD = 0.5                         # decisión del Paso 53
 
 
 def load_dataset(path: Path | None = None) -> tuple[pd.DataFrame, pd.Series]:
-    """Lee Silver. Usa la edad ORIGINAL (con NaN): el modelo imputa por su cuenta."""
+    """Lee Silver y restaura Age y Embarked originales para imputarlos dentro del pipeline."""
     df = pd.read_parquet(Path(path) if path else SILVER / SILVER_NAME)
     X = df[CANDIDATE_COLUMNS].copy()
     X["Age"] = df["AgeOriginal"]
+    X["Embarked"] = df["EmbarkedOriginal"]
     return X, df[TARGET].astype(int)
 
 
@@ -166,7 +168,7 @@ def get_param_grids() -> dict[str, dict]:
             "model__min_samples_leaf": [1, 3, 5],
         },
         "hgb": {
-            "model__learning_rate": [0.03, 0.1],
+            "model__learning_rate": [0.03, 0.05, 0.1],
             "model__max_depth": [2, 3, 4],
             "model__max_iter": [100, 200],
             "model__l2_regularization": [0.0, 1.0],
@@ -258,7 +260,7 @@ def run(in_dir: Path | None = None, models_dir: Path = MODELS) -> Path:
     """Silver -> evaluación honesta -> modelo final entrenado y guardado."""
     silver_path = Path(in_dir) / SILVER_NAME if in_dir else SILVER / SILVER_NAME
     X, y = load_dataset(silver_path)
-    X_tr, X_te, y_tr, y_te = split(X, y)
+    X_tr, X_te, y_tr, y_te = split(X, y, random_state=FINAL_TEST_RANDOM_STATE)
 
     # Evaluación honesta: modelo entrenado solo con X_tr, probado una vez en X_te
     pipe_eval = train_final(X_tr, y_tr)
@@ -281,6 +283,7 @@ def run(in_dir: Path | None = None, models_dir: Path = MODELS) -> Path:
         "target": TARGET,
         "threshold": THRESHOLD,
         "random_state": settings.random_state,
+        "test_random_state": FINAL_TEST_RANDOM_STATE,
         "n_train": len(X),
         "data_sha256": sha256_of(silver_path),
         "metrics": metrics,

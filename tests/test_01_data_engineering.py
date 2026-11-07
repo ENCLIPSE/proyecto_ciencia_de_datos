@@ -64,6 +64,7 @@ def test_impute_embarked_uses_mode(sample):
     out = de.impute_embarked(sample)
     assert out["Embarked"].isna().sum() == 0
     assert out.loc[3, "Embarked"] == "S"
+    assert out["EmbarkedOriginal"].isna().sum() == 1
 
 
 def test_impute_age_by_sex_keeps_original(sample):
@@ -99,7 +100,13 @@ def test_validate_silver_fails_on_nulls(sample):
         de.validate_silver(out)
 
 
+def test_validate_silver_requires_original_embarked(sample):
+    out = de.build_silver(sample).drop(columns=["EmbarkedOriginal"])
+    with pytest.raises(ValueError, match="EmbarkedOriginal"):
+        de.validate_silver(out)
+
+
 def test_drop_original_columns(sample):
     out = de.drop_original_columns(sample)
-    assert not {"Name", "Sex", "Embarked", "Cabin"} & set(out.columns)
+    assert not {"Name", "Sex", "Embarked", "EmbarkedOriginal", "Cabin"} & set(out.columns)
     assert "Name" in sample.columns       # la entrada no se modifica

@@ -4,7 +4,7 @@
 
 Realizar un **análisis exploratorio de datos (EDA)** completo sobre el dataset del Titanic y, a partir de él, **diseñar, evaluar y guardar un modelo de machine learning** que prediga la supervivencia de un pasajero. Todo se construye como un proyecto mantenible: reproducible, verificable, documentado y preparado para crecer. Se utilizan Python, pandas, NumPy, matplotlib, seaborn, SciPy y scikit-learn. PyTorch no se usa: en datos tabulares pequeños como este, los modelos clásicos son suficientes y más fáciles de explicar; las redes neuronales se incorporan solo cuando el problema las requiere.
 
-> **Resultado esperado**: un proyecto estructurado y organizado siguiendo las mejores prácticas de desarrollo para analítica e IA, que se clonar, instalar, ejecutar (`make pipeline`), probar (`make test`) y entender sin depender de rutas locales ni de pasos manuales ocultos, y que termine produciendo un modelo guardado con sus metadatos.
+> **Resultado esperado**: un proyecto estructurado y organizado siguiendo las mejores prácticas de desarrollo para analítica e IA, que se pueda clonar, instalar, ejecutar (`make pipeline`), probar (`make test`) y entender sin depender de rutas locales ni de pasos manuales ocultos, y que termine produciendo un modelo guardado con sus metadatos.
 
 ### Alcance
 
@@ -99,7 +99,7 @@ Cada módulo trae pruebas en `tests/`. Una prueba describe en código lo que la 
 
 ### 2.6 Evaluar sin fuga de datos
 
-La fuga de datos ocurre cuando información del conjunto de evaluación influye en el entrenamiento (por ejemplo, imputar la edad con el promedio de **todos** los pasajeros antes de dividir). Se evita ajustando todo el preprocesamiento **solo con datos de entrenamiento**, dentro de un `Pipeline`, y abriendo el conjunto de prueba **una única vez**.
+La fuga de datos ocurre cuando información del conjunto de evaluación influye en el entrenamiento (por ejemplo, imputar la edad o el puerto con estadísticas de **todos** los pasajeros antes de dividir). Silver conserva `AgeOriginal` y `EmbarkedOriginal`; el modelo los usa y ajusta sus imputadores **solo con datos de entrenamiento**, dentro de un `Pipeline`. El conjunto de prueba se abre **una única vez**.
 
 **Por qué es buena práctica**
 - Las métricas reportadas son estimaciones honestas del desempeño real.
@@ -144,7 +144,7 @@ template_dsai/
 │   ├── test_01_data_engineering.py
 │   ├── test_03_aggregation.py
 │   └── test_05_ml_models.py
-└── reports/                      # Conclusiones, ficha del modelo, figuras; normalmente ignoradas
+└── reports/                      # Informes Markdown versionados; figuras y artefactos generados ignorados
 ```
 
 **Por qué es buena práctica:** una estructura estable reduce la carga cognitiva, separa la exploración del código reutilizable y ubica cada artefacto en un lugar predecible.
@@ -192,7 +192,7 @@ build-backend = "setuptools.build_meta"
 name = "template-dsai"
 version = "0.1.0"
 description = "Taller Titanic: EDA y ML con buenas prácticas"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
   "pandas>=2.2",
   "numpy>=1.26",
@@ -233,7 +233,8 @@ __pycache__/
 .env
 data/
 models/
-reports/
+reports/*
+!reports/*.md
 ```
 
 `.env.example` (se versiona; cada persona copia a `.env`, que **no** se versiona)
@@ -301,7 +302,7 @@ BRONZE_LABELED_NAME = "titanic_labeled.csv"
 BRONZE_UNLABELED_NAME = "titanic_unlabeled.csv"
 BRONZE_METADATA_NAME = "_ingestion_metadata.json"
 SILVER_NAME = "titanic_silver.parquet"          # completo y auditable
-SILVER_FINAL_NAME = "titanic_final.parquet"     # numérico, sin columnas originales
+SILVER_FINAL_NAME = "titanic_final.parquet"     # vista sin columnas de origen sustituidas
 ```
 
 `flows/common/config.py`: parámetros **no sensibles** leídos del entorno.
@@ -578,7 +579,7 @@ Ejecuta `make ingest` y `pytest tests/test_00_ingestion.py -q`. (`test_job.py` f
 
 > **Teoría.** Antes de graficar nada, un analista responde cuatro preguntas: *¿cuánto hay?* (dimensiones), *¿de qué tipo es cada columna?* (tipos), *¿cómo se ve?* (muestra) y *¿qué falta?* (nulos). Los datos faltantes no son un detalle: **pueden sesgar todas tus conclusiones**. Esta primera mirada se hace sobre **Bronze**, porque ahí está la verdad sin retocar.
 
-**Dónde:** `notebooks/02_exploracion.ipynb`, sección "1. Diagnóstico sobre Bronze". Celda de preparación (ejemplo resuelto):
+**Dónde:** `notebooks/02_exploracion.ipynb`, bloque de diagnóstico sobre Bronze. Celda de preparación (ejemplo resuelto):
 
 ```python
 # 1) Importamos las librerías con sus alias convencionales
@@ -975,16 +976,16 @@ def add_survivor_label(df: pd.DataFrame) -> pd.DataFrame:
 >
 > **Teoría — codificación.** Los modelos y las correlaciones necesitan números. Convertir categorías a números con `.map({...})` crea columnas nuevas (con prefijo `N`). Cuidado: **un número impone un orden** que quizá no existe (¿es "Q = 2" mayor que "S = 0"?). En la Parte 11 verás una alternativa mejor para modelar (*one-hot*).
 >
-> **Teoría — imputar en Silver vs. imputar dentro del modelo.** Rellenar la edad con el promedio por género es razonable para **explorar**. Pero calcular ese promedio con *todos* los pasajeros y luego usarlo para entrenar y evaluar un modelo filtra información del conjunto de prueba hacia el entrenamiento (fuga de datos, Principio 2.6). Por eso Silver **conserva la edad original** (`AgeOriginal`) junto con la imputada, y en la Parte 11 el modelo imputará por su cuenta, solo con datos de entrenamiento.
+> **Teoría — imputar en Silver vs. imputar dentro del modelo.** Rellenar la edad con el promedio por género y el puerto con su moda es razonable para **explorar**. Pero esas estadísticas calculadas con *todos* los pasajeros filtran información del conjunto de prueba hacia el entrenamiento. Por eso Silver conserva `AgeOriginal` y `EmbarkedOriginal`; en la Parte 11 el modelo usa ambas columnas originales y las imputa dentro del `Pipeline`, solo con datos de entrenamiento.
 
 ### Paso 21. Datos faltantes en `Embarked`
 
 **Dónde:** `impute_embarked(df)` y, para el punto 4, `encode_categoricals(df)`.
 ```python
-# 1. ¿Cuántos valores faltan en 'Embarked'?
-# 2. Calcula la categoría más frecuente: df['Embarked'].mode()[0]
-# 3. Rellena los faltantes con esa moda usando fillna (asigna el resultado a la columna;
-#    evita inplace=True).
+# 1. Conserva los valores originales: df['EmbarkedOriginal'] = df['Embarked'].
+# 2. Para EDA, rellena 'Embarked' con su moda usando fillna (sin inplace=True).
+# 3. El modelo usará 'EmbarkedOriginal' y dejará que el Pipeline aprenda la moda
+#    solo con el conjunto de entrenamiento.
 # 4. Crea df['NEmbarked'] mapeando S -> 0, C -> 1, Q -> 2.   (va en encode_categoricals)
 ```
 
@@ -1140,14 +1141,14 @@ En el cuaderno (o en `reports/conclusiones_eda.md`), escribe tu conclusión **co
 
 ### Paso 32. Limpieza final
 
-**Lógica:** ya creamos versiones numéricas o derivadas de `Name`, `Sex`, `Embarked` y `Cabin`. Las originales se eliminan **en una copia**, de modo que Silver completo (`titanic_silver.parquet`) conserve todo para el análisis crítico de la Parte 9 y la vista final (`titanic_final.parquet`) quede solo numérica.
+**Lógica:** ya creamos versiones numéricas o derivadas de `Name`, `Sex`, `Embarked` y `Cabin`. Las columnas de origen se eliminan **en una copia**, de modo que Silver completo (`titanic_silver.parquet`) conserve todo para el análisis crítico de la Parte 9. `titanic_final.parquet` es una vista sin esas columnas de origen; puede conservar variables derivadas categóricas.
 
 **Dónde:** `drop_original_columns(df)`.
 ```python
 def drop_original_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Devuelve una COPIA sin Name, Sex, Embarked y Cabin."""
-    # TODO: df.drop(columns=[...])
-    raise NotImplementedError
+    """Devuelve una copia sin las columnas de origen sustituidas por variables derivadas."""
+    columns = ["Name", "Sex", "Embarked", "EmbarkedOriginal", "Cabin"]
+    return df.drop(columns=[column for column in columns if column in df.columns])
 ```
 
 ### Paso 33. Verificación (contratos de entrada y de salida)
@@ -1158,9 +1159,11 @@ def drop_original_columns(df: pd.DataFrame) -> pd.DataFrame:
 ```python
 # validate_bronze: lanza ValueError si faltan columnas de EXPECTED_COLUMNS
 #                  o si hay PassengerId duplicados.
-# validate_silver: lanza ValueError si hay nulos en
+# validate_silver: requiere también AgeOriginal, AgeImputada y EmbarkedOriginal
+#                  (las dos columnas originales pueden contener nulos).
+#                  Lanza ValueError si hay nulos en
 #    ['Survived','Pclass','Age','Fare','Embarked','Person','Alone','TCabin','TTitulo',
-#     'NSex','NEmbarked','NCabin','NTitulo'] (AgeOriginal sí puede tener nulos).
+#     'NSex','NEmbarked','NCabin','NTitulo'].
 # Devuelven el mismo df cuando todo está bien, para poder usarlas en .pipe().
 # cast_types: Survived, Pclass, SibSp, Parch -> int; Age y Fare -> float.
 ```
@@ -1234,6 +1237,7 @@ def test_impute_embarked_uses_mode(sample):
     out = de.impute_embarked(sample)
     assert out["Embarked"].isna().sum() == 0
     assert out.loc[3, "Embarked"] == "S"
+    assert out["EmbarkedOriginal"].isna().sum() == 1
 
 
 def test_impute_age_by_sex_keeps_original(sample):
@@ -1257,7 +1261,7 @@ def test_build_silver_end_to_end(sample):
     out = de.validate_silver(de.build_silver(sample))
     assert len(out) == len(sample)
     for col in ["Person", "Alone", "TCabin", "TTitulo", "NSex", "NEmbarked", "NCabin",
-                "NTitulo", "AgeOriginal", "Survivor"]:
+                "NTitulo", "AgeOriginal", "EmbarkedOriginal", "Survivor"]:
         assert col in out.columns
     assert out.loc[1, "NCabin"] == de.DECKS.index("C")   # el mapa de cubiertas es fijo
 
@@ -1271,7 +1275,7 @@ def test_validate_silver_fails_on_nulls(sample):
 
 def test_drop_original_columns(sample):
     out = de.drop_original_columns(sample)
-    assert not {"Name", "Sex", "Embarked", "Cabin"} & set(out.columns)
+    assert not {"Name", "Sex", "Embarked", "EmbarkedOriginal", "Cabin"} & set(out.columns)
     assert "Name" in sample.columns       # la entrada no se modifica
 ```
 
@@ -1463,7 +1467,7 @@ Escribe un informe corto para la gerencia de la aseguradora con esta estructura:
 
 > **Teoría — explicar vs. predecir.** El EDA responde "¿qué se asocia con sobrevivir?". Un modelo responde "dado un pasajero nuevo, ¿qué probabilidad tiene de sobrevivir?". Para que esa promesa valga, hay que fijar **antes de entrenar** cuatro cosas: la **variable objetivo**, el **momento de predicción** (qué información existe *entonces*), la **métrica** y el **baseline** que el modelo debe superar. Si no se definen primero, es fácil elegir la métrica que mejor le quede al modelo que ya se entrenó.
 
-**Dónde:** `notebooks/04_modelado.ipynb` (sección "10. Formulación") y `reports/problema_ml.md`. Celda de preparación del cuaderno (ejemplo resuelto):
+**Dónde:** `notebooks/04_modelado.ipynb`, bloque de formulación, y `reports/problema_ml.md`. Celda de preparación del cuaderno (ejemplo resuelto):
 
 ```python
 import importlib
@@ -1530,10 +1534,11 @@ def load_dataset(path: Path | None = None) -> tuple[pd.DataFrame, pd.Series]:
     df = pd.read_parquet(Path(path) if path else SILVER / SILVER_NAME)
     X = df[CANDIDATE_COLUMNS].copy()
     X["Age"] = df["AgeOriginal"]
+    X["Embarked"] = df["EmbarkedOriginal"]
     return X, df[TARGET].astype(int)
 ```
 
-> **Por qué `load_dataset` reemplaza `Age` por `AgeOriginal`.** La `Age` de Silver ya fue imputada con estadísticas de *todos* los pasajeros. Usarla en el modelo filtraría información del conjunto de prueba (Parte 5, Principio 2.6).
+> **Por qué `load_dataset` restaura las columnas originales.** `Age` y `Embarked` de Silver ya fueron imputadas con estadísticas de *todos* los pasajeros para el EDA. El modelo usa `AgeOriginal` y `EmbarkedOriginal` para que su `Pipeline` aprenda las imputaciones solo con los datos de entrenamiento (Principio 2.6).
 
 ### Paso 39. Definir el problema y la métrica
 
@@ -1561,6 +1566,7 @@ Completa en el cuaderno una tabla con **todas** las columnas de Silver y decide 
 | `PassengerId`, `Ticket`, `Name` | Sí | Identificadores: memorizan, no generalizan | Excluir (el título sí, vía `TTitulo`) |
 | `NSex`, `NEmbarked`, `NCabin`, `NTitulo` | — | Duplican a `Sex`, etc. con un orden arbitrario | Excluir (usar *one-hot*) |
 | `Age` imputada | — | Estadística calculada con todos los datos | Usar `AgeOriginal` |
+| `Embarked` imputada | — | Moda calculada con todos los datos | Usar `EmbarkedOriginal` |
 | `Cabin`, `TCabin`, `HasCabin` | **Dudoso** | ¿Se registró la cabina *después* del naufragio (más fácil para los sobrevivientes)? | Evaluar con y sin ella (Paso 61) |
 | `Person` | Derivada de `Age`/`Sex` | Redundante con ambas | Excluir del modelo base |
 
@@ -1579,7 +1585,7 @@ def split(X: pd.DataFrame, y: pd.Series, test_size: float | None = None,
     raise NotImplementedError
 ```
 
-En el cuaderno: divide, verifica que la tasa de supervivencia es similar en ambos conjuntos (`y_train.mean()`, `y_test.mean()`) y **no vuelvas a tocar `X_test`** hasta la Parte 16.
+En el cuaderno, reserva la partición final con `ml.split(X, y, random_state=ml.FINAL_TEST_RANDOM_STATE)`. Puedes revisar dimensiones y proporción de `y_train`; no consultes las etiquetas de prueba ni uses `X_test` para comparar baselines, modelos o hiperparámetros. La prueba se abre una vez en la Parte 16.
 
 ### Paso 42. Baselines: lo mínimo que un modelo debe superar
 
@@ -1587,9 +1593,9 @@ En el cuaderno: divide, verifica que la tasa de supervivencia es similar en ambo
 
 ```python
 # Cuaderno, evaluando con validación cruzada sobre X_train/y_train (Paso 48 explica el método):
-# 1. Baseline "ingenuo": DummyClassifier(strategy='most_frequent')  -> exactitud ≈ 0.62
+# 1. Baseline "ingenuo": DummyClassifier(strategy='most_frequent') con CV sobre X_train -> exactitud ≈ 0.62
 # 2. Baseline "regla de género": predice 1 si Sex == 'female' y 0 en caso contrario.
-#    Calcula exactitud, precisión, recall y F1 con sklearn.metrics.
+#    Calcula exactitud, precisión, recall y F1 en X_train/y_train.
 #    Verificación: debería rondar ≈ 0.79 de exactitud. ¡Esa es la vara que hay que superar!
 # 3. Registra los valores en reports/problema_ml.md como "criterio de éxito".
 ```
@@ -1880,7 +1886,7 @@ def get_param_grids() -> dict[str, dict]:
     # 'logreg': {'model__C': [0.01, 0.1, 1, 10], 'model__penalty': ['l2']}
     # 'forest': {'model__n_estimators': [200, 400], 'model__max_depth': [4, 6, 8, None],
     #            'model__min_samples_leaf': [1, 3, 5]}
-    # 'hgb'   : {'model__learning_rate': [0.03, 0.1], 'model__max_depth': [2, 3, 4],
+    # 'hgb'   : {'model__learning_rate': [0.03, 0.05, 0.1], 'model__max_depth': [2, 3, 4],
     #            'model__max_iter': [100, 200], 'model__l2_regularization': [0.0, 1.0]}
     raise NotImplementedError
 ```
@@ -2016,14 +2022,15 @@ Las decisiones que tomaste en el cuaderno 04 se registran **en el código, bajo 
 # --- Decisiones congeladas (resultado del cuaderno 04; justificadas en reports/problema_ml.md) ---
 MODEL_NAME = "titanic_model_v1"
 FINAL_ESTIMATOR = "hgb"                 # nombre en get_candidates()
-FINAL_PARAMS = {                        # mejores hiperparámetros del Paso 57 (ejemplo; usa los tuyos)
-    "model__learning_rate": 0.05,
-    "model__max_depth": 3,
-    "model__max_iter": 200,
-    "model__l2_regularization": 1.0,
+FINAL_PARAMS = {                        # ejemplo: registra aquí los parámetros elegidos con CV
+    "model__learning_rate": 0.03,
+    "model__max_depth": 2,
+    "model__max_iter": 100,
+    "model__l2_regularization": 0.0,
 }
 USE_CABIN_FEATURES = False              # decisión del Paso 61
 THRESHOLD = 0.5                         # decisión del Paso 53
+FINAL_TEST_RANDOM_STATE = 2026           # partición reservada; no usar durante selección
 ```
 
 ### Paso 65. Entrenar el modelo final con todos los datos etiquetados
@@ -2141,15 +2148,26 @@ ls data/bronze data/silver data/gold models
 **Prueba de humo.** Comprueba que el modelo guardado funciona sobre datos que nunca vio y que **no tienen** la respuesta (Bronze sin etiqueta). No hay métrica que calcular: el objetivo es verificar que el flujo de carga → preprocesamiento → predicción corre de punta a punta. La evaluación sobre esos pasajeros se hará en el Taller #3.
 
 ```python
-# Cuaderno 04, última sección:
+# Cuaderno 04, bloque final:
 from flows.common.paths import BRONZE, MODELS, BRONZE_UNLABELED_NAME
+de = importlib.import_module("flows.01_data_engineering")
+
 pipe, meta = ml.load_model(MODELS / "titanic_model_v1.joblib")
 nuevos = pd.read_csv(BRONZE / BRONZE_UNLABELED_NAME)
-# Aplica las MISMAS transformaciones deterministas de Silver (build_silver) a 'nuevos',
-# toma ml.CANDIDATE_COLUMNS y usa 'AgeOriginal' como 'Age', igual que load_dataset().
-# Predice con ml.predict(pipe, X_nuevos) y revisa: ¿hay NaN? ¿la distribución de probabilidades
-# es razonable? ¿alguna categoría nueva (p. ej. un título) que el modelo no conoce?
+nuevos = (
+    nuevos.pipe(de.add_person)
+    .pipe(de.add_cabin_features)
+    .pipe(de.add_family_features)
+    .pipe(de.add_title)
+    .pipe(de.consolidate_titles)
+)
+X_nuevos = nuevos[ml.CANDIDATE_COLUMNS].copy()
+salida = ml.predict(pipe, X_nuevos)
+print(salida.isna().sum().sum())
+salida["proba_survive"].describe()
 ```
+
+> **Importante:** no uses `build_silver()` con este archivo: ese flujo exige etiquetas y convierte `Survived` a entero. Tampoco imputes `Age` o `Embarked` con estadísticas calculadas sobre los pasajeros nuevos: conserva sus valores faltantes para que el `Pipeline` guardado aplique los imputadores aprendidos durante el entrenamiento.
 
 **Ficha del modelo (`reports/model_card.md`).** Documento breve (una página) con: propósito y uso previsto, datos de entrenamiento (fuente, huella SHA-256, tamaño, periodo), variables usadas y excluidas, métricas de validación y de prueba **con su incertidumbre**, desempeño por subgrupos (Paso 54), limitaciones y usos no recomendados (Paso 63), versiones de Python/librerías y cómo reproducir (`make pipeline`).
 
@@ -2162,4 +2180,3 @@ nuevos = pd.read_csv(BRONZE / BRONZE_UNLABELED_NAME)
 - [ ] `reports/conclusiones_eda.md`, `reports/problema_ml.md` y `reports/model_card.md` están completos y distinguen asociación de causalidad.
 - [ ] El conjunto de prueba se usó **una sola vez** y las métricas finales incluyen su incertidumbre.
 - [ ] El historial de *commits* cuenta la historia del proyecto (un cambio por *commit*, mensajes que explican el porqué).
-

@@ -36,6 +36,7 @@ SILVER_NOT_NULL = [
     "Survived", "Pclass", "Age", "Fare", "Embarked", "Person", "Alone", "TCabin",
     "TTitulo", "NSex", "NEmbarked", "NCabin", "NTitulo",
 ]
+SILVER_REQUIRED = SILVER_NOT_NULL + ["AgeOriginal", "AgeImputada", "EmbarkedOriginal"]
 
 
 def validate_bronze(df: pd.DataFrame) -> pd.DataFrame:
@@ -108,8 +109,9 @@ def consolidate_titles(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def impute_embarked(df: pd.DataFrame) -> pd.DataFrame:
-    """Rellena los faltantes de 'Embarked' con la moda."""
+    """Conserva 'Embarked' original y rellena su copia de EDA con la moda."""
     out = df.copy()
+    out["EmbarkedOriginal"] = out["Embarked"]
     out["Embarked"] = out["Embarked"].fillna(out["Embarked"].mode()[0])
     return out
 
@@ -143,13 +145,14 @@ def encode_categoricals(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def drop_original_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Devuelve una COPIA sin Name, Sex, Embarked y Cabin."""
-    return df.drop(columns=["Name", "Sex", "Embarked", "Cabin"])
+    """Devuelve una copia sin columnas de origen sustituidas por variables derivadas."""
+    columns = ["Name", "Sex", "Embarked", "EmbarkedOriginal", "Cabin"]
+    return df.drop(columns=[column for column in columns if column in df.columns])
 
 
 def validate_silver(df: pd.DataFrame) -> pd.DataFrame:
     """Contrato de salida: las columnas clave existen y no tienen nulos."""
-    missing = [c for c in SILVER_NOT_NULL if c not in df.columns]
+    missing = [c for c in SILVER_REQUIRED if c not in df.columns]
     if missing:
         raise ValueError(f"Faltan columnas en Silver: {missing}")
     nulls = df[SILVER_NOT_NULL].isnull().sum()
